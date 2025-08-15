@@ -37,32 +37,24 @@ export default class SceneManager {
   }
 
   setupLighting() {
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.4)
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6)
     this.scene.add(ambientLight)
 
     const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8)
     directionalLight.position.set(10, 20, 5)
     directionalLight.castShadow = true
-    directionalLight.shadow.camera.left = -30
-    directionalLight.shadow.camera.right = 30
-    directionalLight.shadow.camera.top = 30
-    directionalLight.shadow.camera.bottom = -30
-    directionalLight.shadow.mapSize.width = 2048
-    directionalLight.shadow.mapSize.height = 2048
+    directionalLight.shadow.camera.left = -20
+    directionalLight.shadow.camera.right = 20
+    directionalLight.shadow.camera.top = 20
+    directionalLight.shadow.camera.bottom = -20
+    directionalLight.shadow.mapSize.width = 1024
+    directionalLight.shadow.mapSize.height = 1024
     directionalLight.shadow.camera.near = 0.5
     directionalLight.shadow.camera.far = 50
     this.scene.add(directionalLight)
 
-    const hemisphereLight = new THREE.HemisphereLight(0x87CEEB, 0x8B7355, 0.3)
+    const hemisphereLight = new THREE.HemisphereLight(0x87CEEB, 0x8B7355, 0.4)
     this.scene.add(hemisphereLight)
-
-    const pointLight1 = new THREE.PointLight(0xFFD700, 0.5, 20)
-    pointLight1.position.set(-10, 5, -10)
-    this.scene.add(pointLight1)
-
-    const pointLight2 = new THREE.PointLight(0xFF6347, 0.5, 20)
-    pointLight2.position.set(10, 5, 10)
-    this.scene.add(pointLight2)
   }
 
   setupFog() {

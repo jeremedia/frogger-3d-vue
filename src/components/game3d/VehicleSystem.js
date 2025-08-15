@@ -100,17 +100,6 @@ export default class VehicleSystem {
     rightHeadlight.position.set(0.4, 0.5, 1.5)
     vehicleGroup.add(rightHeadlight)
     
-    const headlightCone1 = new THREE.SpotLight(0xFFFFAA, 0.5, 10, Math.PI / 6, 0.5)
-    headlightCone1.position.set(-0.4, 0.5, 1.5)
-    headlightCone1.target.position.set(-0.4, 0, 5)
-    vehicleGroup.add(headlightCone1)
-    vehicleGroup.add(headlightCone1.target)
-    
-    const headlightCone2 = new THREE.SpotLight(0xFFFFAA, 0.5, 10, Math.PI / 6, 0.5)
-    headlightCone2.position.set(0.4, 0.5, 1.5)
-    headlightCone2.target.position.set(0.4, 0, 5)
-    vehicleGroup.add(headlightCone2)
-    vehicleGroup.add(headlightCone2.target)
     
     if (type === 'taxi') {
       const signGeometry = new THREE.BoxGeometry(0.5, 0.2, 0.8)
@@ -137,72 +126,39 @@ export default class VehicleSystem {
     
     this.scene.add(vehicle)
     
-    this.vehicles.push({
+    const vehicleData = {
       model: vehicle,
       lane: lane,
       speed: lane.speed * (0.8 + Math.random() * 0.4),
       type: type,
-      active: true
-    })
-    
-    const exhaust = this.createExhaustParticles(vehicle, lane.direction)
-    vehicle.userData.exhaust = exhaust
-  }
-
-  createExhaustParticles(vehicle, direction) {
-    const particleCount = 20
-    const particles = new THREE.BufferGeometry()
-    const positions = new Float32Array(particleCount * 3)
-    
-    for (let i = 0; i < particleCount * 3; i++) {
-      positions[i] = 0
+      active: true,
+      boundingBox: new THREE.Box3().setFromObject(vehicle)
     }
     
-    particles.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-    
-    const particleMaterial = new THREE.PointsMaterial({
-      color: 0x666666,
-      size: 0.3,
-      transparent: true,
-      opacity: 0.6,
-      blending: THREE.AdditiveBlending
-    })
-    
-    const particleSystem = new THREE.Points(particles, particleMaterial)
-    particleSystem.position.set(direction > 0 ? -1.5 : 1.5, 0.3, 0)
-    vehicle.add(particleSystem)
-    
-    return particleSystem
+    this.vehicles.push(vehicleData)
   }
+
 
   update(deltaTime) {
     this.vehicles.forEach((vehicle, index) => {
       if (!vehicle.active) return
       
+      const oldX = vehicle.model.position.x
       vehicle.model.position.x += vehicle.lane.direction * vehicle.speed * deltaTime * 0.001
       
-      const exhaust = vehicle.model.userData.exhaust
-      if (exhaust) {
-        const positions = exhaust.geometry.attributes.position.array
-        for (let i = 0; i < positions.length; i += 3) {
-          positions[i] += (Math.random() - 0.5) * 0.1
-          positions[i + 1] += Math.random() * 0.05
-          positions[i + 2] += (Math.random() - 0.5) * 0.1
-          
-          if (positions[i + 1] > 1) {
-            positions[i] = 0
-            positions[i + 1] = 0
-            positions[i + 2] = 0
-          }
-        }
-        exhaust.geometry.attributes.position.needsUpdate = true
-        exhaust.material.opacity = 0.3 + Math.random() * 0.3
+      // Update bounding box only if position changed significantly
+      if (Math.abs(vehicle.model.position.x - oldX) > 0.1) {
+        vehicle.boundingBox.setFromObject(vehicle.model)
       }
       
-      const wheels = vehicle.model.children.filter(child => 
-        child.geometry && child.geometry.type === 'CylinderGeometry'
-      )
-      wheels.forEach(wheel => {
+      // Rotate wheels (cache wheel references)
+      if (!vehicle.wheels) {
+        vehicle.wheels = vehicle.model.children.filter(child => 
+          child.geometry && child.geometry.type === 'CylinderGeometry'
+        )
+      }
+      
+      vehicle.wheels.forEach(wheel => {
         wheel.rotation.x += vehicle.speed * deltaTime * 0.005
       })
       
@@ -226,9 +182,7 @@ export default class VehicleSystem {
     for (let vehicle of this.vehicles) {
       if (!vehicle.active) continue
       
-      const vehicleBox = new THREE.Box3().setFromObject(vehicle.model)
-      
-      if (playerBox.intersectsBox(vehicleBox)) {
+      if (playerBox.intersectsBox(vehicle.boundingBox)) {
         this.createCrashEffect(vehicle.model.position)
         return true
       }

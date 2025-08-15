@@ -1,13 +1,16 @@
 import * as THREE from 'three'
 import { gsap } from 'gsap'
+import ParticlePool from './ParticlePool'
 
 export default class EffectsManager {
   constructor(scene, renderer, camera) {
     this.scene = scene
     this.renderer = renderer
     this.camera = camera
-    this.particles = []
+    this.particlePool = new ParticlePool(scene, 15)
     this.activeEffects = []
+    this.fireflies = null
+    this.fireflyAnimation = null
     
     this.setupPostProcessing()
     this.createAmbientParticles()
@@ -58,82 +61,27 @@ export default class EffectsManager {
 
   animateFireflies() {
     const positions = this.fireflies.geometry.attributes.position.array
-    const originalPositions = [...positions]
+    this.originalFireflyPositions = [...positions]
+    this.fireflyTime = 0
+  }
+  
+  updateFireflies(deltaTime) {
+    if (!this.fireflies || !this.originalFireflyPositions) return
     
-    gsap.to({}, {
-      duration: 0,
-      repeat: -1,
-      onRepeat: () => {
-        const time = Date.now() * 0.0005
-        for (let i = 0; i < positions.length; i += 3) {
-          positions[i] = originalPositions[i] + Math.sin(time + i) * 2
-          positions[i + 1] = originalPositions[i + 1] + Math.sin(time * 1.5 + i) * 0.5
-          positions[i + 2] = originalPositions[i + 2] + Math.cos(time + i) * 2
-        }
-        this.fireflies.geometry.attributes.position.needsUpdate = true
-        
-        this.fireflies.material.opacity = 0.6 + Math.sin(time * 2) * 0.3
-      }
-    })
+    this.fireflyTime += deltaTime * 0.0005
+    const positions = this.fireflies.geometry.attributes.position.array
+    
+    for (let i = 0; i < positions.length; i += 3) {
+      positions[i] = this.originalFireflyPositions[i] + Math.sin(this.fireflyTime + i) * 2
+      positions[i + 1] = this.originalFireflyPositions[i + 1] + Math.sin(this.fireflyTime * 1.5 + i) * 0.5
+      positions[i + 2] = this.originalFireflyPositions[i + 2] + Math.cos(this.fireflyTime + i) * 2
+    }
+    this.fireflies.geometry.attributes.position.needsUpdate = true
+    this.fireflies.material.opacity = 0.6 + Math.sin(this.fireflyTime * 2) * 0.3
   }
 
   createSplashEffect(position) {
-    const dropCount = 30
-    const dropGeometry = new THREE.BufferGeometry()
-    const dropPositions = new Float32Array(dropCount * 3)
-    const dropVelocities = []
-    
-    for (let i = 0; i < dropCount; i++) {
-      const i3 = i * 3
-      dropPositions[i3] = position.x
-      dropPositions[i3 + 1] = position.y
-      dropPositions[i3 + 2] = position.z
-      
-      dropVelocities.push({
-        x: (Math.random() - 0.5) * 0.3,
-        y: Math.random() * 0.5 + 0.2,
-        z: (Math.random() - 0.5) * 0.3
-      })
-    }
-    
-    dropGeometry.setAttribute('position', new THREE.BufferAttribute(dropPositions, 3))
-    
-    const dropMaterial = new THREE.PointsMaterial({
-      color: 0x4169E1,
-      size: 0.3,
-      transparent: true,
-      opacity: 1,
-      blending: THREE.AdditiveBlending
-    })
-    
-    const dropSystem = new THREE.Points(dropGeometry, dropMaterial)
-    this.scene.add(dropSystem)
-    
-    const animateDrops = () => {
-      const positions = dropSystem.geometry.attributes.position.array
-      
-      for (let i = 0; i < dropCount; i++) {
-        const i3 = i * 3
-        positions[i3] += dropVelocities[i].x
-        positions[i3 + 1] += dropVelocities[i].y
-        positions[i3 + 2] += dropVelocities[i].z
-        
-        dropVelocities[i].y -= 0.02 // Gravity
-      }
-      
-      dropSystem.geometry.attributes.position.needsUpdate = true
-    }
-    
-    gsap.to(dropMaterial, {
-      opacity: 0,
-      duration: 1.5,
-      onUpdate: animateDrops,
-      onComplete: () => {
-        this.scene.remove(dropSystem)
-      }
-    })
-    
-    // Create ripple effect
+    this.particlePool.createSplash(position, 0x4169E1)
     this.createRippleEffect(position)
   }
 
@@ -288,41 +236,7 @@ export default class EffectsManager {
   }
 
   createDeathEffect(position) {
-    // Explosion particles
-    const particleCount = 100
-    const geometry = new THREE.BufferGeometry()
-    const positions = new Float32Array(particleCount * 3)
-    const colors = new Float32Array(particleCount * 3)
-    const velocities = []
-    
-    for (let i = 0; i < particleCount; i++) {
-      const i3 = i * 3
-      positions[i3] = position.x
-      positions[i3 + 1] = position.y + 0.5
-      positions[i3 + 2] = position.z
-      
-      colors[i3] = 1
-      colors[i3 + 1] = Math.random() * 0.5
-      colors[i3 + 2] = 0
-      
-      velocities.push({
-        x: (Math.random() - 0.5) * 0.5,
-        y: Math.random() * 0.5,
-        z: (Math.random() - 0.5) * 0.5
-      })
-    }
-    
-    geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3))
-    geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3))
-    
-    const material = new THREE.PointsMaterial({
-      size: 0.5,
-      vertexColors: true,
-      blending: THREE.AdditiveBlending
-    })
-    
-    const particleSystem = new THREE.Points(geometry, material)
-    this.scene.add(particleSystem)
+    this.particlePool.createExplosion(position)
     
     // Flash effect
     const flashLight = new THREE.PointLight(0xFF0000, 5, 10)
@@ -337,32 +251,8 @@ export default class EffectsManager {
       }
     })
     
-    // Animate explosion
-    gsap.to({}, {
-      duration: 2,
-      onUpdate: () => {
-        const positions = geometry.attributes.position.array
-        for (let i = 0; i < particleCount; i++) {
-          const i3 = i * 3
-          positions[i3] += velocities[i].x
-          positions[i3 + 1] += velocities[i].y
-          positions[i3 + 2] += velocities[i].z
-          velocities[i].y -= 0.02
-        }
-        geometry.attributes.position.needsUpdate = true
-      }
-    })
-    
-    gsap.to(material, {
-      opacity: 0,
-      duration: 2,
-      onComplete: () => {
-        this.scene.remove(particleSystem)
-      }
-    })
-    
     // Screen shake
-    this.screenShake(0.5)
+    this.screenShake(0.3)
   }
 
   screenShake(duration) {
@@ -435,9 +325,21 @@ export default class EffectsManager {
   }
 
   update(deltaTime) {
-    // Update any ongoing effects
+    // Update particle pool
+    this.particlePool.update(deltaTime)
+    
+    // Update fireflies
+    this.updateFireflies(deltaTime)
+    
     if (this.fireflies) {
       this.fireflies.rotation.y += deltaTime * 0.0001
     }
+  }
+  
+  destroy() {
+    if (this.fireflyAnimation) {
+      this.fireflyAnimation.kill()
+    }
+    this.particlePool.reset()
   }
 }

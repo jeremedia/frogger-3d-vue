@@ -8,6 +8,7 @@ export default class EnvironmentManager {
     this.lilyPads = []
     this.waterPlane = null
     this.roadSegments = []
+    this.textureCache = new Map()
     
     this.createGround()
     this.createRoad()
@@ -15,7 +16,7 @@ export default class EnvironmentManager {
     this.createLogs()
     this.createLilyPads()
     this.createTrees()
-    this.createGrass()
+    this.createGrassInstanced()
   }
 
   createGround() {
@@ -56,24 +57,30 @@ export default class EnvironmentManager {
   }
 
   createRoadTexture() {
+    if (this.textureCache.has('road')) {
+      return this.textureCache.get('road')
+    }
+    
     const canvas = document.createElement('canvas')
-    canvas.width = 512
-    canvas.height = 512
+    canvas.width = 256
+    canvas.height = 256
     const context = canvas.getContext('2d')
     
     context.fillStyle = '#333333'
-    context.fillRect(0, 0, 512, 512)
+    context.fillRect(0, 0, 256, 256)
     
     context.fillStyle = '#555555'
-    for (let i = 0; i < 512; i += 32) {
-      for (let j = 0; j < 512; j += 32) {
+    for (let i = 0; i < 256; i += 32) {
+      for (let j = 0; j < 256; j += 32) {
         if ((i + j) % 64 === 0) {
           context.fillRect(i, j, 16, 16)
         }
       }
     }
     
-    return new THREE.CanvasTexture(canvas)
+    const texture = new THREE.CanvasTexture(canvas)
+    this.textureCache.set('road', texture)
+    return texture
   }
 
   createWater() {
@@ -191,50 +198,62 @@ export default class EnvironmentManager {
   }
 
   createWoodTexture() {
+    if (this.textureCache.has('wood')) {
+      return this.textureCache.get('wood')
+    }
+    
     const canvas = document.createElement('canvas')
-    canvas.width = 256
-    canvas.height = 256
+    canvas.width = 128
+    canvas.height = 128
     const context = canvas.getContext('2d')
     
-    const gradient = context.createLinearGradient(0, 0, 256, 0)
+    const gradient = context.createLinearGradient(0, 0, 128, 0)
     gradient.addColorStop(0, '#8B4513')
     gradient.addColorStop(0.5, '#A0522D')
     gradient.addColorStop(1, '#8B4513')
     
     context.fillStyle = gradient
-    context.fillRect(0, 0, 256, 256)
+    context.fillRect(0, 0, 128, 128)
     
     context.strokeStyle = '#654321'
-    context.lineWidth = 2
-    for (let i = 0; i < 256; i += 20) {
+    context.lineWidth = 1
+    for (let i = 0; i < 128; i += 20) {
       context.beginPath()
       context.moveTo(0, i)
-      context.lineTo(256, i)
+      context.lineTo(128, i)
       context.stroke()
     }
     
-    return new THREE.CanvasTexture(canvas)
+    const texture = new THREE.CanvasTexture(canvas)
+    this.textureCache.set('wood', texture)
+    return texture
   }
 
   createWoodRingTexture() {
+    if (this.textureCache.has('woodRing')) {
+      return this.textureCache.get('woodRing')
+    }
+    
     const canvas = document.createElement('canvas')
-    canvas.width = 256
-    canvas.height = 256
+    canvas.width = 128
+    canvas.height = 128
     const context = canvas.getContext('2d')
     
     context.fillStyle = '#8B4513'
-    context.fillRect(0, 0, 256, 256)
+    context.fillRect(0, 0, 128, 128)
     
     context.strokeStyle = '#654321'
-    context.lineWidth = 2
+    context.lineWidth = 1
     
-    for (let r = 20; r < 128; r += 20) {
+    for (let r = 10; r < 64; r += 15) {
       context.beginPath()
-      context.arc(128, 128, r, 0, Math.PI * 2)
+      context.arc(64, 64, r, 0, Math.PI * 2)
       context.stroke()
     }
     
-    return new THREE.CanvasTexture(canvas)
+    const texture = new THREE.CanvasTexture(canvas)
+    this.textureCache.set('woodRing', texture)
+    return texture
   }
 
   createLilyPads() {
@@ -364,31 +383,43 @@ export default class EnvironmentManager {
     return treeGroup
   }
 
-  createGrass() {
-    const grassCount = 100
-    for (let i = 0; i < grassCount; i++) {
-      const grassBlade = this.createGrassBlade()
-      grassBlade.position.set(
-        Math.random() * 40 - 20,
-        0,
-        Math.random() * 40 - 20
-      )
+  createGrassInstanced() {
+    const grassCount = 50
+    const geometry = new THREE.ConeGeometry(0.05, 0.5, 4)
+    const material = new THREE.MeshBasicMaterial({ 
+      color: 0x4CAF50
+    })
+    
+    const instancedMesh = new THREE.InstancedMesh(geometry, material, grassCount)
+    const matrix = new THREE.Matrix4()
+    const color = new THREE.Color()
+    
+    let validPositions = 0
+    for (let i = 0; i < grassCount && validPositions < grassCount; i++) {
+      const x = Math.random() * 40 - 20
+      const z = Math.random() * 40 - 20
       
-      if (Math.abs(grassBlade.position.z - 2) > 5 && 
-          Math.abs(grassBlade.position.z + 6) > 4) {
-        this.scene.add(grassBlade)
+      if (Math.abs(z - 2) > 5 && Math.abs(z + 6) > 4) {
+        matrix.makeTranslation(x, 0.25, z)
+        instancedMesh.setMatrixAt(validPositions, matrix)
+        
+        color.setRGB(
+          0.2 + Math.random() * 0.1, 
+          0.5 + Math.random() * 0.2, 
+          0.1
+        )
+        instancedMesh.setColorAt(validPositions, color)
+        validPositions++
       }
     }
-  }
-
-  createGrassBlade() {
-    const bladeGeometry = new THREE.ConeGeometry(0.05, 0.5, 4)
-    const bladeMaterial = new THREE.MeshBasicMaterial({ 
-      color: new THREE.Color(0.2 + Math.random() * 0.1, 0.5 + Math.random() * 0.2, 0.1)
-    })
-    const blade = new THREE.Mesh(bladeGeometry, bladeMaterial)
-    blade.position.y = 0.25
-    return blade
+    
+    instancedMesh.instanceMatrix.needsUpdate = true
+    if (instancedMesh.instanceColor) {
+      instancedMesh.instanceColor.needsUpdate = true
+    }
+    
+    this.scene.add(instancedMesh)
+    this.grassInstanced = instancedMesh
   }
 
   update(deltaTime) {
@@ -404,8 +435,9 @@ export default class EnvironmentManager {
       log.model.rotation.x += deltaTime * 0.0005
     })
     
-    if (this.waterPlane) {
-      this.waterPlane.material.opacity = 0.7 + Math.sin(Date.now() * 0.001) * 0.1
+    // Update water opacity less frequently
+    if (this.waterPlane && Math.random() > 0.9) {
+      this.waterPlane.material.opacity = 0.7 + Math.sin(performance.now() * 0.001) * 0.1
     }
   }
 

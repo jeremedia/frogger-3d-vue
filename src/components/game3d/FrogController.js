@@ -336,8 +336,9 @@ export default class FrogController {
   }
 
   update(deltaTime) {
+    this.animationTime = (this.animationTime || 0) + deltaTime * 0.005
     if (this.shield) {
-      this.shield.material.opacity = 0.3 + Math.sin(Date.now() * 0.005) * 0.1
+      this.shield.material.opacity = 0.3 + Math.sin(this.animationTime) * 0.1
     }
   }
 

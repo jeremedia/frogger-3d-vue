@@ -58,6 +58,7 @@ import EffectsManager from './game3d/EffectsManager'
 import AudioEngine from './game3d/AudioEngine'
 import PowerUpSystem from './game3d/PowerUpSystem'
 import GameManager from './game3d/GameManager'
+import PerformanceMonitor from './game3d/PerformanceMonitor'
 
 export default {
   name: 'Frogger3D',
@@ -78,6 +79,7 @@ export default {
     let audioEngine = null
     let powerUpSystem = null
     let gameManager = null
+    let performanceMonitor = null
     let animationId = null
     
     const initGame = () => {
@@ -90,6 +92,7 @@ export default {
       effectsManager = new EffectsManager(sceneManager.scene, sceneManager.renderer, sceneManager.camera)
       audioEngine = new AudioEngine(sceneManager.camera)
       powerUpSystem = new PowerUpSystem(sceneManager.scene)
+      performanceMonitor = new PerformanceMonitor()
       
       gameManager = new GameManager({
         sceneManager,
@@ -114,6 +117,10 @@ export default {
     
     const animate = () => {
       animationId = requestAnimationFrame(animate)
+      
+      if (performanceMonitor) {
+        const deltaTime = performanceMonitor.update(sceneManager.renderer, sceneManager.scene)
+      }
       
       if (gameState.value === 'playing' && gameManager) {
         gameManager.update()
@@ -224,6 +231,14 @@ export default {
       
       if (gameManager) {
         gameManager.destroy()
+      }
+      
+      if (performanceMonitor) {
+        performanceMonitor.destroy()
+      }
+      
+      if (effectsManager) {
+        effectsManager.destroy()
       }
     })
     
